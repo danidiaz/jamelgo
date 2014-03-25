@@ -2,9 +2,9 @@ Name:                jamelgo
 Version:             0.1
 Synopsis:            Project Synopsis Here
 Description:         Project Description Here
-License:             AllRightsReserved
-Author:              Author
-Maintainer:          maintainer@example.com
+License:             BSD3
+Author:              Daniel Díaz Carrete
+Maintainer:          diaz_carrete@yahoo.com
 Stability:           Experimental
 Category:            Web
 Build-type:          Simple
@@ -33,7 +33,10 @@ Executable jamelgo
     snap-loader-static        >= 0.9     && < 0.10,
     text                      >= 0.11    && < 1.2,
     time                      >= 1.1     && < 1.5,
-    xmlhtml                   >= 0.1
+    xmlhtml                   >= 0.1,
+    lens                      >= 4.0,
+    aeson                     >= 0.7,
+    optparse-applicative      >= 0.8.0.1
 
   if flag(old-base)
     build-depends:

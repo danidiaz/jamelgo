@@ -8,4 +8,7 @@ TAGS
 *.swp
 .project
 .classpath
+.sandbox
+cabal.sandbox.config
+.cabal-sandbox/
 Session.vim
