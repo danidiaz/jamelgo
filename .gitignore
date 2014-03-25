@@ -1,0 +1,11 @@
+dist/
+target/
+log/
+tmp/
+.shelly/
+tags
+TAGS
+*.swp
+.project
+.classpath
+Session.vim
