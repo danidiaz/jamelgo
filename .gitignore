@@ -1,8 +1,9 @@
+.shelly/
+.cabal-sandbox/
 dist/
 target/
 log/
 tmp/
-.shelly/
 tags
 TAGS
 *.swp
@@ -10,5 +11,5 @@ TAGS
 .classpath
 .sandbox
 cabal.sandbox.config
-.cabal-sandbox/
 Session.vim
+site_key.txt
