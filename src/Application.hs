@@ -14,6 +14,7 @@ import Snap.Snaplet.Jamelgo
 ------------------------------------------------------------------------------
 data App = App
     { _heist :: Snaplet (Heist App)
+    , _jamelgo :: Snaplet Jamelgo
     }
 
 makeLenses ''App

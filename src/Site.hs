@@ -15,6 +15,7 @@ import qualified Data.Text as T
 import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Heist
+import           Snap.Snaplet.Jamelgo
 import           Snap.Util.FileServe
 import           Heist
 import qualified Heist.Interpreted as I
@@ -32,6 +33,7 @@ routes = [ ("",          serveDirectory "static")
 app :: SnapletInit App App
 app = makeSnaplet "app" "An snaplet example application." Nothing $ do
     h <- nestSnaplet "" heist $ heistInit "templates"
+    j <- nestSnaplet "" jamelgo $ jamelgoInit
     addRoutes routes
-    return $ App h
+    return $ App h j
 
