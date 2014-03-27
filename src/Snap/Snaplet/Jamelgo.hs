@@ -10,17 +10,25 @@ import Control.Monad
 import Control.Monad.Trans
 import Control.Lens
 import Control.Exception (throwIO)
-import Data.Aeson
 import Data.Monoid
+import Data.Map
+import Data.Maybe
+import Data.Aeson
 import qualified Data.ByteString as B
 import qualified Data.Text as T
 import System.FilePath
+import System.Directory
 
 import Snap.Snaplet
 
 data Jamelgo = Jamelgo
-    {   _jres :: [FilePath]
+    {   _jres :: Map T.Text FilePath
     }
+
+findJavaExecutable :: FilePath -> IO (Maybe FilePath)
+findJavaExecutable path = 
+    let possibilities = [combine path "bin"] <**> [id, (`addExtension` "exe")]
+    in listToMaybe <$> filterM doesFileExist possibilities
 
 jamelgoInit :: SnapletInit b Jamelgo
 jamelgoInit  = do
