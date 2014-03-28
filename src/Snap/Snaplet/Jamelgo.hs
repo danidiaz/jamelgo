@@ -28,6 +28,7 @@ newtype JavaExe = JavaExe FilePath
 
 data Jamelgo = Jamelgo
     {   _jres :: Map T.Text JavaExe
+    ,   _servers :: Map T.Text FilePath
     }
 
 findJavaExecutable :: MonadIO m => FilePath -> ErrorT String m JavaExe
@@ -39,12 +40,10 @@ findJavaExecutable path = do
     where
         files =  [combine path "bin/java"] <**> [(`addExtension` "exe"), id]
 
-loadJavaExecutableMap :: (Functor m,MonadIO m)
-                      => FilePath -> ErrorT String m (Map T.Text JavaExe)
-loadJavaExecutableMap path = do
-    jreJs <- liftIO $ B.readFile path
-    jreMap <- ErrorT . return . eitherDecodeStrict' $ jreJs 
-    traverse findJavaExecutable jreMap 
+eitherDecodeFromFile :: (Functor m,MonadIO m,FromJSON j)
+                     => FilePath -> ErrorT String m (Map T.Text j)
+eitherDecodeFromFile =
+    liftIO . B.readFile >=> ErrorT . return . eitherDecodeStrict'
 
 jamelgoInit :: SnapletInit b Jamelgo
 jamelgoInit  = do
@@ -54,8 +53,16 @@ jamelgoInit  = do
             lift $ printInfo $ 
                 "Loading JRE locations from: " <> T.pack jreJsPath 
             javaMap <- loadJavaExecutableMap jreJsPath
-            return $ Jamelgo javaMap
+            serversJsPath <- (</> "servers.js") <$> lift getSnapletFilePath
+            lift $ printInfo $ 
+                "Loading server directory from: " <> T.pack jreJsPath 
+            serverMap <- eitherDecodeFromFile serversJsPath 
+            return $ Jamelgo javaMap serverMap
         either (liftIO . throwIO . userError) return $ result
+    where
+        loadJavaExecutableMap = 
+            eitherDecodeFromFile >=> traverse findJavaExecutable
+
 --
 --        TR.traverse printInfo $ Flip mapE
 --        seed <- liftIO newStdGen 
