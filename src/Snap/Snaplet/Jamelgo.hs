@@ -31,6 +31,21 @@ data Jamelgo = Jamelgo
     ,   _servers :: Map T.Text FilePath
     }
 
+eitherDecodeFromFile :: (Functor m,MonadIO m,FromJSON j)
+                     => FilePath -> ErrorT String m (Map T.Text j)
+eitherDecodeFromFile =
+    liftIO . B.readFile >=> ErrorT . return . eitherDecodeStrict'
+
+loadMap :: (FromJSON j) 
+        => (j -> ErrorT String (Initializer b v) r)
+        -> FilePath
+        -> ErrorT String (Initializer b v) (Map T.Text r)  
+loadMap traversal file = do
+        path <- (</> file) <$> lift getSnapletFilePath
+        lift $ printInfo $ 
+            "Loading " <> T.pack file <> " from " <> T.pack path
+        eitherDecodeFromFile path >>= traverse traversal 
+
 findJavaExecutable :: MonadIO m => FilePath -> ErrorT String m JavaExe
 findJavaExecutable path = do
     list <- liftIO (filterM doesFileExist files)
@@ -40,28 +55,14 @@ findJavaExecutable path = do
     where
         files =  [combine path "bin/java"] <**> [(`addExtension` "exe"), id]
 
-eitherDecodeFromFile :: (Functor m,MonadIO m,FromJSON j)
-                     => FilePath -> ErrorT String m (Map T.Text j)
-eitherDecodeFromFile =
-    liftIO . B.readFile >=> ErrorT . return . eitherDecodeStrict'
-
 jamelgoInit :: SnapletInit b Jamelgo
 jamelgoInit  = do
     makeSnaplet "jamelgo" "Jamelgo Snaplet" Nothing $ do
         result <- runErrorT $ do
-            jreJsPath <- (</> "JREs.js") <$> lift getSnapletFilePath
-            lift $ printInfo $ 
-                "Loading JRE locations from: " <> T.pack jreJsPath 
-            javaMap <- loadJavaExecutableMap jreJsPath
-            serversJsPath <- (</> "servers.js") <$> lift getSnapletFilePath
-            lift $ printInfo $ 
-                "Loading server directory from: " <> T.pack jreJsPath 
-            serverMap <- eitherDecodeFromFile serversJsPath 
+            javaMap <- loadMap findJavaExecutable "JREs.js"
+            serverMap <- loadMap return "servers.js"
             return $ Jamelgo javaMap serverMap
         either (liftIO . throwIO . userError) return $ result
-    where
-        loadJavaExecutableMap = 
-            eitherDecodeFromFile >=> traverse findJavaExecutable
 
 --
 --        TR.traverse printInfo $ Flip mapE
