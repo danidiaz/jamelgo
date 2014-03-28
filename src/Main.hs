@@ -75,7 +75,6 @@ main = do
     (conf, site, cleanup) <- $(loadSnapTH [| getConf |]
                                           'getActions
                                           ["snaplets/heist/templates"])
-
     _ <- try $ httpServe conf site :: IO (Either SomeException ())
     cleanup
 

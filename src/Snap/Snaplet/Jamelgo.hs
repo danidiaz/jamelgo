@@ -8,12 +8,15 @@ import Control.Applicative
 import Control.Arrow
 import Control.Monad
 import Control.Monad.Trans
+import Control.Monad.Error
 import Control.Lens
 import Control.Exception (throwIO)
 import Data.Monoid
+import Data.Distributive
 import Data.Map
 import Data.Maybe
 import Data.Aeson
+import Data.Traversable
 import qualified Data.ByteString as B
 import qualified Data.Text as T
 import System.FilePath
@@ -21,25 +24,38 @@ import System.Directory
 
 import Snap.Snaplet
 
+newtype JavaExe = JavaExe FilePath
+
 data Jamelgo = Jamelgo
-    {   _jres :: Map T.Text FilePath
+    {   _jres :: Map T.Text JavaExe
     }
 
-findJavaExecutable :: FilePath -> IO (Maybe FilePath)
-findJavaExecutable path = 
-    let possibilities = [combine path "bin"] <**> [id, (`addExtension` "exe")]
-    in listToMaybe <$> filterM doesFileExist possibilities
+findJavaExecutable :: MonadIO m => FilePath -> ErrorT String m JavaExe
+findJavaExecutable path = do
+    list <- liftIO (filterM doesFileExist files)
+    case list of
+        [] -> throwError $ "Not found " <> path
+        javaExe:_ -> return $ JavaExe javaExe
+    where
+        files =  [combine path "bin/java"] <**> [(`addExtension` "exe"), id]
+
+loadJavaExecutableMap :: (Functor m,MonadIO m)
+                      => FilePath -> ErrorT String m (Map T.Text JavaExe)
+loadJavaExecutableMap path = do
+    jreJs <- liftIO $ B.readFile path
+    jreMap <- ErrorT . return . eitherDecodeStrict' $ jreJs 
+    traverse findJavaExecutable jreMap 
 
 jamelgoInit :: SnapletInit b Jamelgo
 jamelgoInit  = do
     makeSnaplet "jamelgo" "Jamelgo Snaplet" Nothing $ do
-        path <- flip combine "JREs.js" <$> getSnapletFilePath
-        printInfo $ "Loading JREs from: " <> T.pack path
-        jres_js <- liftIO $ B.readFile path
-        case eitherDecodeStrict' jres_js of
-            Left errmsg -> liftIO $ throwIO $ userError errmsg
-            Right jres' -> do 
-                return $ Jamelgo jres'
+        result <- runErrorT $ do
+            jreJsPath <- (</> "JREs.js") <$> lift getSnapletFilePath
+            lift $ printInfo $ 
+                "Loading JRE locations from: " <> T.pack jreJsPath 
+            javaMap <- loadJavaExecutableMap jreJsPath
+            return $ Jamelgo javaMap
+        either (liftIO . throwIO . userError) return $ result
 --
 --        TR.traverse printInfo $ Flip mapE
 --        seed <- liftIO newStdGen 
