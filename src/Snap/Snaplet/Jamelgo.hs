@@ -32,19 +32,22 @@ data OS = Linux
 
 newtype JavaExe = JavaExe FilePath
 
+data Service = Service 
+    {
+       _baseRelPath :: FilePath
+    ,  _defaultJvmArgs :: String
+    }
+
 data Jamelgo = Jamelgo
-    {   _os :: OS
-    ,   _jres :: Map T.Text JavaExe
-    ,   _servers :: Map T.Text FilePath
+    {  _os :: OS
+    ,  _jres :: Map T.Text JavaExe
+    ,  _servers :: Map T.Text FilePath
     }
 
 eitherDecodeFromFile :: (Functor m,MonadIO m,FromJSON j)
                      => FilePath -> ErrorT String m j
 eitherDecodeFromFile =
     liftIO . B.readFile >=> ErrorT . return . eitherDecodeStrict'
-
--- note :: Monad m => e -> Maybe a -> ErrorT e m a
--- note e = ErrorT . return . maybe (Left e) Right 
 
 (???) :: Monad m => Maybe a -> e -> ErrorT e m a
 (???) m e = ErrorT . return . maybe (Left e) Right $ m
@@ -94,25 +97,7 @@ jamelgoInit  = do
             return $ Jamelgo theOS javaMap serverMap
         either (liftIO . throwIO . userError) return $ result
 
---
---        TR.traverse printInfo $ Flip mapE
---        seed <- liftIO newStdGen 
---        now <- liftIO getCurrentTime 
---        let poemz = maybe M.empty id $ hush mapE :: M.Map Langname [Verse]
---            elemz = M.elems poemz -- discard the language names
---            langCount' = genericLength elemz
---            verseCount' = F.maximum . map genericLength $ elemz
---            filler = S.repeat . S.repeat $ "buffalo" 
---            verses = distribute $ compile filler elemz         
---            eternity' = Eternity langCount' verseCount' verses
---            (origin',mutations') = evalRand (futurify eternity') seed
---        snaplet <- StochasticText eternity' <$>
---                       (liftIO . newMVar $ Sempiternity now origin' mutations')
---        liftIO . forkIO $ langolier (milis 10000) 
---                                    (milis 30000)   
---                                    (snaplet^.sempiternity) 
---        return snaplet 
---
-
 $(makeLenses ''Jamelgo)
+$(makeLenses ''Service)
+
 
