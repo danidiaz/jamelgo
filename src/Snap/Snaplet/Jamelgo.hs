@@ -7,9 +7,9 @@ module Snap.Snaplet.Jamelgo where
 
 import Control.Applicative
 import Control.Arrow
-import Control.Monad
+import Control.Monad hiding (forM)
 import Control.Monad.Trans
-import Control.Monad.Error
+import Control.Monad.Error hiding (forM)
 import Control.Lens
 import Control.Exception (throwIO)
 import Data.Monoid
@@ -29,14 +29,50 @@ import Snap.Snaplet
 
 data OS = Linux
         | Windows
+     deriving Show
 
-newtype JavaExe = JavaExe FilePath
+newtype JavaExe = JavaExe FilePath deriving Show
+
+data ArgType = PlainArg T.Text
+             | PathArg T.Text T.Text -- prefix-relpath 
+     deriving Show
+
+data Arg = Arg
+    {
+        _exclusive :: Maybe OS
+    ,   _argType :: ArgType
+    } deriving Show
+
+instance FromJSON Arg where
+    parseJSON (Object v) = do
+         osMaybe <- v .:? "onlyon"
+         os <- forM osMaybe $ \osstr -> case (osstr::String) of
+             "windows" -> return Windows
+             "linux" -> return Linux
+             _ -> mempty
+         val1 <- v .:? "plainarg"
+         val2 <- v .:? "onlyon"
+         case (val1,val2) of
+             (Just val1',Nothing) -> Arg os . PlainArg <$> parseJSON val1'
+             (Nothing,Just val2') -> (\p -> Arg os . PathArg p) <$> 
+                                     val2' .: "prefix" <*> 
+                                     val2' .: "relpath"
+             _ -> mempty
+    parseJSON _ = mempty
 
 data Service = Service 
     {
-       _baseRelPath :: FilePath
+       _relPath :: FilePath
     ,  _defaultJvmArgs :: String
-    }
+    ,  _arglist :: [Arg]  
+    } deriving Show
+
+instance FromJSON Service where
+    parseJSON (Object v) = Service <$> 
+                           v .: "relpath" <*> 
+                           v .: "default-jvmargs" <*> 
+                           v .: "arglist"
+    parseJSON _ = mempty
 
 data Jamelgo = Jamelgo
     {  _os :: OS
