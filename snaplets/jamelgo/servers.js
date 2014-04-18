@@ -1,3 +1,3 @@
 { 
-    "someServer" : "C:\\javaservers\\sillyserver.js" 
+    "someServer" : "C:/javaservers/sillyserver/sillyserver.js" 
 }
