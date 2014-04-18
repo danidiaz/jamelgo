@@ -51,7 +51,7 @@ instance FromJSON Arg where
              "linux" -> return Linux
              _ -> mempty
          val1 <- v .:? "plainarg"
-         val2 <- v .:? "onlyon"
+         val2 <- v .:? "patharg"
          case (val1,val2) of
              (Just val1',Nothing) -> Arg os . PlainArg <$> parseJSON val1'
              (Nothing,Just val2') -> (\p -> Arg os . PathArg p) <$> 
@@ -77,7 +77,7 @@ instance FromJSON Service where
 data Jamelgo = Jamelgo
     {  _os :: OS
     ,  _jres :: Map T.Text JavaExe
-    ,  _servers :: Map T.Text FilePath
+    ,  _servers :: Map T.Text Service
     }
 
 eitherDecodeFromFile :: (Functor m,MonadIO m,FromJSON j)
@@ -123,13 +123,23 @@ findJavaExecutable path = do
     where
         files =  [combine path "bin/java"] <**> [(`addExtension` "exe"), id]
 
+
+findServer :: (Functor m,MonadIO m) 
+           => FilePath 
+           -> ErrorT String m Service
+findServer path = do
+    does <- liftIO $ doesFileExist path
+    unless does . throwError $ "Path " <> path <> " not found."
+    eitherDecodeFromFile path 
+
+
 jamelgoInit :: SnapletInit b Jamelgo
 jamelgoInit  = do
     makeSnaplet "jamelgo" "Jamelgo Snaplet" Nothing $ do
         result <- runErrorT $ do
             theOS <- loadOS "OS.js"
             javaMap <- loadMap findJavaExecutable "JREs.js"
-            serverMap <- loadMap return "servers.js"
+            serverMap <- loadMap findServer "servers.js"
             return $ Jamelgo theOS javaMap serverMap
         either (liftIO . throwIO . userError) return $ result
 
