@@ -62,15 +62,17 @@ instance FromJSON Arg where
 
 data Service = Service 
     {
-       _relPath :: FilePath
-    ,  _defaultJvmArgs :: String
+       _defaultJvmArgs :: String
+    ,  _exeRelpath :: FilePath
+    ,  _argRelpath :: FilePath
     ,  _arglist :: [Arg]  
     } deriving Show
 
 instance FromJSON Service where
     parseJSON (Object v) = Service <$> 
-                           v .: "relpath" <*> 
-                           v .: "default-jvmargs" <*> 
+                           v .: "jvmargs" <*> 
+                           v .: "exerelpath" <*> 
+                           v .: "argrelpath" <*> 
                            v .: "arglist"
     parseJSON _ = mempty
 
