@@ -39,8 +39,6 @@ instance FromJSON OS where
              _ -> empty
     parseJSON _ = empty
 
-newtype JavaExe = JavaExe FilePath deriving Show
-
 data ArgType = PlainArg T.Text
              | PathArg T.Text T.Text -- prefix-relpath 
      deriving Show
@@ -81,43 +79,27 @@ instance FromJSON Service where
                            v .: "arglist"
     parseJSON _ = mempty
 
+newtype JavaExe = JavaExe FilePath deriving Show
+
 data Jamelgo = Jamelgo
     {  _os :: OS
     ,  _jres :: M.Map T.Text JavaExe
     ,  _servers :: M.Map T.Text Service
     }
 
-eitherDecodeFromFile :: (Functor m,MonadIO m,FromJSON j)
-                     => FilePath -> ErrorT String m j
+eitherDecodeFromFile :: (MonadIO m,FromJSON j)
+                     => FilePath 
+                     -> ErrorT String m j
 eitherDecodeFromFile =
     liftIO . B.readFile >=> ErrorT . return . eitherDecodeStrict'
 
-(???) :: Monad m => Maybe a -> e -> ErrorT e m a
-(???) m e = ErrorT . return . maybe (Left e) Right $ m
-
-loadOS :: FilePath  
-       -> ErrorT String (Initializer b v) OS
-loadOS file = do
-    path <- (</> file) <$> lift getSnapletFilePath 
-    lift $ printInfo $ 
-        "Loading " <> T.pack file <> " from " <> T.pack path
-    singletonMap <- eitherDecodeFromFile path
-    str <- fmap T.toLower $ 
-        M.lookup ("os"::T.Text) singletonMap ??? "No os entry!" 
-    if | str == "windows" -> return Windows
-       | str == "linux" -> return Linux
-       | otherwise -> throwError $ 
-            "Unable to determine OS from string: " <> show str
-
-loadMap :: (FromJSON j) 
-        => (j -> ErrorT String (Initializer b v) r)
-        -> FilePath
-        -> ErrorT String (Initializer b v) (M.Map T.Text r)  
-loadMap traversal file = do
-        path <- (</> file) <$> lift getSnapletFilePath
-        lift $ printInfo $ 
-            "Loading " <> T.pack file <> " from " <> T.pack path
-        eitherDecodeFromFile path >>= traverse traversal 
+loadJSON :: FromJSON j 
+         => FilePath
+         -> ErrorT String (Initializer b v) j
+loadJSON file = do
+    path <- (</> file) <$> lift getSnapletFilePath
+    lift $ printInfo $ "Loading " <> T.pack file <> " from " <> T.pack path
+    eitherDecodeFromFile path 
 
 findJavaExecutable :: (MonadIO m) 
                    => FilePath 
@@ -130,8 +112,7 @@ findJavaExecutable path = do
     where
         files =  [combine path "bin/java"] <**> [(`addExtension` "exe"), id]
 
-
-findServer :: (Functor m,MonadIO m) 
+findServer :: (MonadIO m) 
            => FilePath 
            -> ErrorT String m Service
 findServer path = do
@@ -139,14 +120,13 @@ findServer path = do
     unless does . throwError $ "Path " <> path <> " not found."
     eitherDecodeFromFile path 
 
-
 jamelgoInit :: SnapletInit b Jamelgo
 jamelgoInit  = do
     makeSnaplet "jamelgo" "Jamelgo Snaplet" Nothing $ do
         result <- runErrorT $ do
-            theOS <- loadOS "OS.js"
-            javaMap <- loadMap findJavaExecutable "JREs.js"
-            serverMap <- loadMap findServer "servers.js"
+            theOS <- loadJSON "OS.js"
+            javaMap <- loadJSON "JREs.js" >>= traverse findJavaExecutable 
+            serverMap <- loadJSON "servers.js" >>= traverse findServer 
             return $ Jamelgo theOS javaMap serverMap
         either (liftIO . throwIO . userError) return $ result
 
