@@ -15,7 +15,6 @@ import Control.Exception (throwIO)
 import Data.Monoid
 import Data.Distributive
 import Data.Char
-import Data.Map
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Aeson
@@ -30,6 +29,15 @@ import Snap.Snaplet
 data OS = Linux
         | Windows
      deriving Show
+
+instance FromJSON OS where
+    parseJSON (Object v) = do
+         os <- v .: "os"
+         case os of
+             ("windows"::String) -> return Windows
+             "linux" -> return Linux
+             _ -> empty
+    parseJSON _ = empty
 
 newtype JavaExe = JavaExe FilePath deriving Show
 
@@ -46,10 +54,7 @@ data Arg = Arg
 instance FromJSON Arg where
     parseJSON (Object v) = do
          osMaybe <- v .:? "onlyon"
-         os <- forM osMaybe $ \osstr -> case (osstr::String) of
-             "windows" -> return Windows
-             "linux" -> return Linux
-             _ -> mempty
+         os <- forM osMaybe parseJSON 
          val1 <- v .:? "plainarg"
          val2 <- v .:? "patharg"
          case (val1,val2) of
@@ -78,8 +83,8 @@ instance FromJSON Service where
 
 data Jamelgo = Jamelgo
     {  _os :: OS
-    ,  _jres :: Map T.Text JavaExe
-    ,  _servers :: Map T.Text Service
+    ,  _jres :: M.Map T.Text JavaExe
+    ,  _servers :: M.Map T.Text Service
     }
 
 eitherDecodeFromFile :: (Functor m,MonadIO m,FromJSON j)
@@ -107,7 +112,7 @@ loadOS file = do
 loadMap :: (FromJSON j) 
         => (j -> ErrorT String (Initializer b v) r)
         -> FilePath
-        -> ErrorT String (Initializer b v) (Map T.Text r)  
+        -> ErrorT String (Initializer b v) (M.Map T.Text r)  
 loadMap traversal file = do
         path <- (</> file) <$> lift getSnapletFilePath
         lift $ printInfo $ 
