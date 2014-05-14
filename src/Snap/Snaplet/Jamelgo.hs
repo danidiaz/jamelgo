@@ -39,6 +39,14 @@ instance FromJSON OS where
              _ -> empty
     parseJSON _ = empty
 
+data Conf = Conf OS (M.Map T.Text FilePath) (M.Map T.Text FilePath)
+
+instance FromJSON Conf where
+    parseJSON (Object v) = Conf <$> (v.:"host") 
+                                <*> (v.:"jres") 
+                                <*> (v.:"servers")
+    parseJSON _ = empty
+
 data ArgType = PlainArg T.Text
              | PathArg T.Text T.Text -- prefix-relpath 
      deriving Show
@@ -71,6 +79,8 @@ data Service = Service
     ,  _arglist :: [Arg]  
     } deriving Show
 
+$(makeLenses ''Service)
+
 instance FromJSON Service where
     parseJSON (Object v) = Service <$> 
                            v .: "jvmargs" <*> 
@@ -87,19 +97,19 @@ data Jamelgo = Jamelgo
     ,  _servers :: M.Map T.Text Service
     }
 
-eitherDecodeFromFile :: (MonadIO m,FromJSON j)
-                     => FilePath 
-                     -> ErrorT String m j
+$(makeLenses ''Jamelgo)
+
+eitherDecodeFromFile :: (MonadIO m,FromJSON j) => FilePath -> ErrorT String m j
 eitherDecodeFromFile =
     liftIO . B.readFile >=> ErrorT . return . eitherDecodeStrict'
 
-loadJSON :: FromJSON j 
-         => FilePath
-         -> ErrorT String (Initializer b v) j
-loadJSON file = do
-    path <- (</> file) <$> lift getSnapletFilePath
-    lift $ printInfo $ "Loading " <> T.pack file <> " from " <> T.pack path
-    eitherDecodeFromFile path 
+--loadJSON :: FromJSON j 
+--         => FilePath
+--         -> ErrorT String (Initializer b v) j
+--loadJSON file = do
+--    path <- (</> file) <$> lift getSnapletFilePath
+--    lift $ printInfo $ "Loading " <> T.pack file <> " from " <> T.pack path
+--    eitherDecodeFromFile path 
 
 findJavaExecutable :: (MonadIO m) 
                    => FilePath 
@@ -112,25 +122,24 @@ findJavaExecutable path = do
     where
         files =  [combine path "bin/java"] <**> [(`addExtension` "exe"), id]
 
-findServer :: (MonadIO m) 
-           => FilePath 
-           -> ErrorT String m Service
-findServer path = do
-    does <- liftIO $ doesFileExist path
-    unless does . throwError $ "Path " <> path <> " not found."
-    eitherDecodeFromFile path 
+-- findServer :: (MonadIO m) 
+--            => FilePath 
+--            -> ErrorT String m Service
+-- findServer path = do
+--     does <- liftIO $ doesFileExist path
+--     unless does . throwError $ "Path " <> path <> " not found."
+--     eitherDecodeFromFile path 
 
 jamelgoInit :: SnapletInit b Jamelgo
 jamelgoInit  = do
     makeSnaplet "jamelgo" "Jamelgo Snaplet" Nothing $ do
+        path <- (</> "conf.js") <$> getSnapletFilePath
         result <- runErrorT $ do
-            theOS <- loadJSON "OS.js"
-            javaMap <- loadJSON "JREs.js" >>= traverse findJavaExecutable 
-            serverMap <- loadJSON "servers.js" >>= traverse findServer 
-            return $ Jamelgo theOS javaMap serverMap
+            Conf os jrePathMap serverPathMap <- eitherDecodeFromFile path
+            jreMap <- traverse findJavaExecutable jrePathMap
+            serverMap <- traverse eitherDecodeFromFile serverPathMap
+            return $ Jamelgo os jreMap serverMap
         either (liftIO . throwIO . userError) return $ result
 
-$(makeLenses ''Jamelgo)
-$(makeLenses ''Service)
 
 
