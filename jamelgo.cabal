@@ -41,7 +41,8 @@ Executable jamelgo
     directory                 >= 1.2.0,
     distributive              >= 0.4,
     transformers              >= 0.3,
-    process-streaming         >= 0.0.1.1
+    process-streaming         >= 0.0.1.1,
+    web-routes                >= 0.27.5
 
   if flag(old-base)
     build-depends:
